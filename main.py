@@ -146,8 +146,8 @@ def main(args):
                 writer.add_scalar('Loss/u_loss', -u_loss.item(), i)
         
         if i % args.eval_interval == 0:
-            s_acc = evaluation(s_test_loader, model)
-            writer.add_scalar('Acc/s_acc.', s_acc, i)
+            # s_acc = evaluation(s_test_loader, model)
+            # writer.add_scalar('Acc/s_acc.', s_acc, i)
             t_acc = evaluation(t_unlabeled_test_loader, model)
             writer.add_scalar('Acc/t_acc.', t_acc, i)
 
