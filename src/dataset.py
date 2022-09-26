@@ -96,12 +96,12 @@ def get_loader(dset, seed=None, bsize=24, train=True):
         dloader = InfiniteDataLoader(dset,
             batch_size = bsize,
             worker_init_fn=seed_worker, generator=g,
-            drop_last=True, num_workers=8)
+            drop_last=True, num_workers=4)
     else:
         dloader = DataLoader(dset, 
             batch_size = bsize,
             worker_init_fn=seed_worker, generator=g, 
-            shuffle=False, drop_last=False, num_workers=8, pin_memory=True)
+            shuffle=False, drop_last=False, num_workers=4, pin_memory=True)
     return dloader
 
 class ImageList(Dataset):
