@@ -6,10 +6,15 @@ from torch.autograd import Function
 from cdac_loss import advbce_unlabeled, sigmoid_rampup, BCE_softlabels
 
 def init_weights(m):
-    if isinstance(m, nn.Linear):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        m.weight.data.normal_(0.0, 0.1)
+    elif classname.find('Linear') != -1:
         nn.init.xavier_normal_(m.weight)
-        if m.bias is not None:
-            nn.init.zeros_(m.bias)
+        nn.init.zeros_(m.bias)
+    elif classname.find('BatchNorm') != -1:
+        m.weight.data.normal_(1.0, 0.1)
+        m.bias.data.fill_(0)
 
 class ProtoClassifier(nn.Module):
     def __init__(self, center):
@@ -54,7 +59,7 @@ class ResModel(nn.Module):
         super(ResModel, self).__init__()
         self.f = ResBase(backbone=backbone, weights=models.__dict__[f'ResNet{backbone[6:]}_Weights'].DEFAULT if pre_trained else None)
         self.c = Classifier(self.f.last_dim, hidden_dim, output_dim, temp)
-        self.c.apply(init_weights)
+        init_weights(self.c)
 
         self.criterion = nn.CrossEntropyLoss(reduction='none')
         self.bce = BCE_softlabels()
@@ -62,10 +67,15 @@ class ResModel(nn.Module):
         return self.c(self.f(x), reverse)
 
     def get_params(self, lr):
-        return [
-            {'params': self.f.parameters(), 'base_lr': lr*0.1, 'lr': lr*0.1},
-            {'params': self.c.parameters(), 'base_lr': lr, 'lr': lr}
-        ]
+        params = []
+        for k, v in dict(self.f.named_parameters()).items():
+            if v.requires_grad:
+                if 'classifier' not in k:
+                    params += [{'params': [v], 'base_lr': lr*0.1, 'lr': lr*0.1}]
+                else:
+                    params += [{'params': [v], 'base_lr': lr, 'lr': lr}]
+        params += [{'params': self.c.parameters(), 'base_lr': lr, 'lr': lr}]
+        return params
     def get_features(self, x, reverse=False):
         return self.c.get_features(self.f(x), reverse=reverse)
     
