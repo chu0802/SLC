@@ -4,6 +4,7 @@ feature
 .mdh
 script
 test.py
+core*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
