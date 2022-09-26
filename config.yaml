@@ -11,7 +11,7 @@ weight_decay: 0.0005
 dataset_cfg:
     OfficeHome:
         name: OfficeHome
-        path: /home/chu0802/data/OfficeHome
+        path: /home/chu980802/data/OfficeHome
         num_classes: 65
         domains:
                 - Art
@@ -24,7 +24,7 @@ dataset_cfg:
             3shot_test: _test_3.txt
     Office31:
         name: Office31
-        path: /home/chu0802/data/Office31
+        path: /home/chu980802/data/Office31
         num_classes: 31
         domains:
                 - amazon
