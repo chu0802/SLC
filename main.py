@@ -34,7 +34,7 @@ def arguments_parsing():
     p.add('--alpha', type=float, default=0.3)
     p.add('--beta', type=float, default=0.5)
 
-    p.add('--eval_interval', type=int, default=500)
+    p.add('--eval_interval', type=int, default=1000)
     p.add('--log_interval', type=int, default=100)
     p.add('--update_interval', type=int, default=0)
     # configurations
