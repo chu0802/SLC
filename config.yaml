@@ -1,6 +1,3 @@
-bsize: 24
-num_iters: 5000
-eval_interval: 500
 
 # optimizer
 lr: 0.01
