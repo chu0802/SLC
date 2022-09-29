@@ -106,13 +106,21 @@ class ResModel(nn.Module):
         return lamda * torch.mean(torch.sum(out * (torch.log(out + 1e-10)), dim=1))
     def cdac_loss(self, x, x1, x2, i):
         w_cons = 30 * sigmoid_rampup(i, 2000)
+        f = self.f(x)
+        f1 = self.f(x1)
+        f2 = self.f(x2)
 
-        f, f1, f2 = [self.f(i) for i in [x, x1, x2]]
-        prob, prob1 = [F.softmax(self.c(i, reverse=True), dim=1) for i in [f, f1]]
+        out = self.c(f, reverse=True)
+        out1 = self.c(f1, reverse=True)
+        
+        prob, prob1 = F.softmax(out, dim=1), F.softmax(out1, dim=1)
         aac_loss = advbce_unlabeled(target=None, f=f, prob=prob, prob1=prob1, bce=self.bce)
 
-        out, out1, out2 = [self.c(i) for i in [f, f1, f2]]
-        prob, prob1, prob2 = [F.softmax(i, dim=1) for i in [out, out1, out2]]
+        out = self.c(f)
+        out1 = self.c(f1)
+        out2 = self.c(f2)
+
+        prob, prob1, prob2 = F.softmax(out, dim=1), F.softmax(out1, dim=1), F.softmax(out2, dim=1)
         mp, pl = torch.max(prob.detach(), dim=1)
         mask = mp.ge(0.95).float()
 
