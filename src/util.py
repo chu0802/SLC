@@ -25,6 +25,22 @@ class LR_Scheduler(object):
     def get_lr(self):
         return self.current_lr
 
+class Lambda_Scheduler(object):
+    def __init__(self, num_iters, base_lambda=0.01, propotion=True):
+        self.iter = 0
+        self.num_iters = num_iters
+        self.propotion = propotion
+        self.base = base_lambda
+        self.current_lambda = base_lambda
+    def step(self):
+        if propotion:
+            self.current_lambda = self.base * ((1 + 5 * self.iter / self.num_iters)**(-0.75))
+        else:
+            self.current_lambda = self.base * ((1 + 0.0001 * self.iter) ** (-0.75))
+        self.iter += 1
+    def get_lambda(self):
+        return self.current_lambda
+
 def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)

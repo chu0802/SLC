@@ -11,7 +11,7 @@ import sys
 sys.path.append('src')
 
 from model import ResModel, ProtoClassifier
-from util import set_seed, save, load, LR_Scheduler
+from util import set_seed, save, load, LR_Scheduler, Lambda_Scheduler
 from dataset import get_all_loaders
 from evaluation import evaluation, prediction
 from mdh import ModelHandler
@@ -63,7 +63,9 @@ def main(args):
 
     params = model.get_params(args.lr)
     opt = torch.optim.SGD(params, momentum=args.momentum, weight_decay=args.weight_decay, nesterov=True)
-    lr_scheduler = LR_Scheduler(opt, args.num_iters)
+    # lr_scheduler = LR_Scheduler(opt, args.num_iters)
+    src_scheduler = Lambda_Scheduler(num_iters=args.num_iters, base_lambda=args.lr, propotion=False)
+    tgt_scheduler = Lambda_Scheduler(num_iters=args.num_iters, base_lambda=args.lr, propotion=True if 'CDAC' in args.method else False)
 
     if args.mode == 'uda':
         s_train_loader, s_test_loader, t_unlabeled_train_loader, t_unlabeled_test_loader = get_all_loaders(args)
@@ -95,6 +97,8 @@ def main(args):
     writer.add_text('Hash', args.mdh.getHashStr())
 
     for i in range(1, args.num_iters+1):
+        src_l = src_scheduler.get_lambda()
+        tgt_l = tgt_scheduler.get_lambda()
         opt.zero_grad()
 
         sx, sy = next(s_iter)
@@ -110,12 +114,12 @@ def main(args):
             s_loss = model.base_loss(sx, sy)
         
         if args.mode == 'uda':
-            loss = s_loss
+            loss = src_l * s_loss
         elif args.mode == 'ssda':
             tx, ty = next(l_iter)
             tx, ty = tx.float().cuda(), ty.long().cuda()
             t_loss = model.base_loss(tx, ty)
-            loss = args.beta * s_loss + (1-args.beta) * t_loss
+            loss = src_l * (args.beta * s_loss + (1-args.beta) * t_loss)
 
         loss.backward()
         opt.step()
@@ -125,20 +129,22 @@ def main(args):
             ux, _ = next(u_iter)
             ux = ux.float().cuda()
             
-            u_loss = model.mme_loss(ux)
+            u_loss = tgt_l * model.mme_loss(ux)
             u_loss.backward()
         elif 'CDAC' in args.method:
             ux, _, ux1, ux2 = next(u_iter)
             ux, ux1, ux2 = ux.float().cuda(), ux1.float().cuda(), ux2.float().cuda()
 
-            u_loss = model.cdac_loss(ux, ux1, ux2, i)
+            u_loss = tgt_l * model.cdac_loss(ux, ux1, ux2, i)
             u_loss.backward()
 
         opt.step()
-        lr_scheduler.step()
+        # lr_scheduler.step()
+        src_scheduler.step()
+        tgt_scheduler.step()
 
         if i % args.log_interval == 0:
-            writer.add_scalar('LR', lr_scheduler.get_lr(), i)
+            writer.add_scalar('LR', src_scheduler.get_lr(), i)
             writer.add_scalar('Loss/s_loss', s_loss.item(), i)
             if args.mode == 'ssda':
                 writer.add_scalar('Loss/t_loss', t_loss.item(), i)
