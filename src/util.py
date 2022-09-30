@@ -33,7 +33,7 @@ class Lambda_Scheduler(object):
         self.base = base_lambda
         self.current_lambda = base_lambda
     def step(self):
-        if propotion:
+        if self.propotion:
             self.current_lambda = self.base * ((1 + 5 * self.iter / self.num_iters)**(-0.75))
         else:
             self.current_lambda = self.base * ((1 + 0.0001 * self.iter) ** (-0.75))
