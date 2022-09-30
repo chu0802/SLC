@@ -21,7 +21,7 @@ for yo in range(0, 6):
         args.T = 0.6
         args.lr = 0.01
         args.update_interval = 500
-        args.note = f'mother_{mother_seed}_lr_5'
+        args.note = f'mother_{mother_seed}_separate_lr'
         gh = GH()
 
         l = [[] for _ in range(len(device))]
@@ -33,4 +33,4 @@ for yo in range(0, 6):
             l[idx].append(cmd)
         for i in range(len(device)):
             with (dir_ / f'scriptMME_LC{i}.sh').open('a') as f:
-                f.write('\n'.join(l[i if yo % 2 == 1 else 11-i])+'\n')
+                f.write('\n'.join(l[i if yo % 2 == 1 else 11 - i])+'\n')
