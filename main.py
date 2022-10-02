@@ -33,6 +33,7 @@ def arguments_parsing():
     p.add('--num_iters', type=int, default=5000)
     p.add('--alpha', type=float, default=0.3)
     p.add('--beta', type=float, default=0.5)
+    p.add('--gamma', type=float, default=0.9)
 
     p.add('--eval_interval', type=int, default=500)
     p.add('--log_interval', type=int, default=100)
@@ -49,11 +50,6 @@ def arguments_parsing():
     p.add('--note', type=str, default='')
     p.add('--init', type=str, default='')
     return p.parse_args()
-
-def getPPC(args, model, t_loader, label):
-    _, t_feat = prediction(t_loader, model)
-    centers = torch.vstack([t_feat[label == i].mean(dim=0) for i in range(args.dataset['num_classes'])])
-    return ProtoClassifier(centers)
 
 def main(args):
     os.environ['CUDA_VISIBLE_DEVICES'] = args.device
@@ -77,7 +73,17 @@ def main(args):
         pseudo_label, _ = prediction(t_unlabeled_test_loader, init_model)
         pseudo_label = pseudo_label.argmax(dim=1)
 
-        ppc = getPPC(args, model, t_unlabeled_test_loader, pseudo_label)
+        ppc = ProtoClassifier(args.dataset['num_classes'], pseudo_label)
+        ppc.init(model, t_unlabeled_test_loader)
+    elif 'nlc' in args.method:
+        model_path = args.mdh.gh.getModelPath(args.init)
+        init_model = ResModel('resnet34', output_dim=args.dataset['num_classes'])
+        load(model_path, init_model)
+        init_model.cuda()
+        init_model.eval()
+
+        for param in init_model.parameters():
+            param.requires_grad_(False)
 
     torch.cuda.empty_cache()
 
@@ -93,20 +99,31 @@ def main(args):
     for i in range(1, args.num_iters+1):
         opt.zero_grad()
 
-        sx, sy = next(s_iter)
+        sx, sy, _ = next(s_iter)
         sx, sy = sx.float().cuda(), sy.long().cuda()
+        tx, ty, _ = next(l_iter)
+        tx, ty = tx.float().cuda(), ty.long().cuda()
+
+        if 'CDAC' in args.method:
+            ux, _, ux1, ux2, u_idx = next(u_iter)
+            ux, ux1, ux2,  u_idx = ux.float().cuda(), ux1.float().cuda(), ux2.float().cuda(), u_idx.long()
+        else:  
+            ux, _, u_idx = next(u_iter)
+            ux, u_idx = ux.float().cuda(), u_idx.long()
 
         if 'LC' in args.method:
             sf = model.get_features(sx)
             sy2 = ppc(sf.detach(), args.T)
             s_loss = model.lc_loss(sf, sy, sy2, args.alpha)
+
+            ppc.update_center(ux, u_idx, model, args.gamma)
         elif 'NL' in args.method:
             s_loss = model.nl_loss(sx, sy, args.alpha, args.T)
+        elif 'nlc' in args.method:
+            sy2 = F.softmax()
         else:
             s_loss = model.base_loss(sx, sy)
         
-        tx, ty = next(l_iter)
-        tx, ty = tx.float().cuda(), ty.long().cuda()
         t_loss = model.base_loss(tx, ty)
         loss = args.beta * s_loss + (1-args.beta) * t_loss
 
@@ -115,15 +132,9 @@ def main(args):
 
         opt.zero_grad()
         if 'MME' in args.method:  
-            ux, _ = next(u_iter)
-            ux = ux.float().cuda()
-            
             u_loss = model.mme_loss(ux)
             u_loss.backward()
         elif 'CDAC' in args.method:
-            ux, _, ux1, ux2 = next(u_iter)
-            ux, ux1, ux2 = ux.float().cuda(), ux1.float().cuda(), ux2.float().cuda()
-
             u_loss = model.cdac_loss(ux, ux1, ux2, i)
             u_loss.backward()
 
@@ -143,15 +154,15 @@ def main(args):
             t_acc = evaluation(t_unlabeled_test_loader, model)
             writer.add_scalar('Acc/t_acc.', t_acc, i)
 
-        if args.update_interval > 0 and i % args.update_interval == 0 and 'LC' in args.method:
-            ppc = getPPC(args, model, t_unlabeled_test_loader, pseudo_label)
+        # if args.update_interval > 0 and i % args.update_interval == 0 and 'LC' in args.method:
+        #     ppc = getPPC(args, model, t_unlabeled_test_loader, pseudo_label)
         
     save(args.mdh.getModelPath(), model)
 
 if __name__ == '__main__':
     args = arguments_parsing()
     gh = GlobalHandler('test')
-    args.mdh = ModelHandler(args, keys=['dataset', 'mode', 'method', 'source', 'target', 'seed', 'num_iters', 'alpha', 'T', 'init', 'note', 'update_interval', 'lr'], gh=gh)
+    args.mdh = ModelHandler(args, keys=['dataset', 'mode', 'method', 'source', 'target', 'seed', 'num_iters', 'alpha', 'T', 'init', 'note', 'update_interval', 'lr', 'gamma'], gh=gh)
     # replace the configuration
     args.dataset = args.dataset_cfg[args.dataset]
     main(args)
