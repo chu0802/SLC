@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Function
 from cdac_loss import advbce_unlabeled, sigmoid_rampup, BCE_softlabels
-from evaluation import prediction
+
 def init_weights(m):
     if isinstance(m, nn.Linear):
         nn.init.xavier_normal_(m.weight)
@@ -12,25 +12,11 @@ def init_weights(m):
             nn.init.zeros_(m.bias)
 
 class ProtoClassifier(nn.Module):
-    def __init__(self, size, label):
+    def __init__(self, center):
         super(ProtoClassifier, self).__init__()
-        self.center = None
-        self.label = label
-        self.size = size
-    @torch.no_grad()
-    def init(self, model, t_loader):
-        _, t_feat = prediction(t_loader, model)
-        self.center = torch.vstack([t_feat[self.label == i].mean(dim=0) for i in range(self.size)]).requires_grad_(False)
-    @torch.no_grad()
-    def update_center(self, x, idx, model, p=0.9):
-        model.eval()
-
-        f = model.get_features(x)
-        c = torch.stack([f[self.label[idx] == i].mean(dim=0) for i in range(self.size)])
-        c_idx = torch.unique(self.label[idx])
-        self.center[c_idx] = p * self.center[c_idx] + (1 - p) * c[c_idx]
-
-        model.train()
+        self.center = center.requires_grad_(False)
+    def update_center(self, c, idx, p=0.99):
+        self.center[idx] = p * self.center[idx] + (1 - p) * c[idx]
     @torch.no_grad()
     def forward(self, x, T=1.0):
         dist = torch.cdist(x, self.center)
