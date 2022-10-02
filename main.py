@@ -115,14 +115,14 @@ def main(args):
             sf = model.get_features(sx)
             sy2 = ppc(sf.detach(), args.T)
             l_loss, soft_loss = model.lc_loss(sf, sy, sy2, args.alpha)
-            s_loss = ((1 - alpha) * l_loss + alpha * soft_loss).mean()
+            s_loss = ((1 - args.alpha) * l_loss + args.alpha * soft_loss).mean()
             ppc.update_center(ux, u_idx, model, args.gamma)
         elif 'NL' in args.method:
             s_loss = model.nl_loss(sx, sy, args.alpha, args.T)
         elif 'nlc' in args.method:
             sy2 = F.softmax(init_model(sx).detach() * args.T, dim=1)
             l_loss, soft_loss = model.nlc_loss(sx, sy, sy2, args.alpha)
-            s_loss = ((1 - alpha) * l_loss + alpha * soft_loss).mean()
+            s_loss = ((1 - args.alpha) * l_loss + args.alpha * soft_loss).mean()
         else:
             s_loss = model.base_loss(sx, sy)
         
