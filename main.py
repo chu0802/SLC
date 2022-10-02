@@ -31,9 +31,9 @@ def arguments_parsing():
     p.add('--seed', type=int, default=2020)
     p.add('--bsize', type=int, default=24)
     p.add('--num_iters', type=int, default=5000)
-    p.add('--alpha', type=float, default=0.3)
-    p.add('--beta', type=float, default=0.5)
-    p.add('--gamma', type=float, default=0.9)
+    p.add('--alpha', type=float, default=0.0)
+    p.add('--beta', type=float, default=0.0)
+    p.add('--gamma', type=float, default=0.0)
 
     p.add('--eval_interval', type=int, default=500)
     p.add('--log_interval', type=int, default=100)
@@ -146,6 +146,8 @@ def main(args):
         if i % args.log_interval == 0:
             writer.add_scalar('LR', lr_scheduler.get_lr(), i)
             writer.add_scalar('Loss/s_loss', s_loss.item(), i)
+            writer.add_scalar('Loss/l_loss', l_loss.item(), i)
+            writer.add_scalar('Loss/soft_loss', soft_loss.item(), i)
             writer.add_scalar('Loss/t_loss', t_loss.item(), i)
             if 'MME' in args.method or 'CDAC' in args.method:
                 writer.add_scalar('Loss/u_loss', -u_loss.item(), i)
