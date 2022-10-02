@@ -98,10 +98,11 @@ class ResModel(nn.Module):
 
     def nlc_loss(self, x, y1, y2, alpha):
         out = self.forward(x)
-        log_softmax_out = F.log_softmax(out, dim=1)
-        l_loss = self.criterion(out, y1)
-        soft_loss = -(y2 * log_softmax_out).sum(axis=1)
-        return l_loss, soft_loss
+        # log_softmax_out = F.log_softmax(out, dim=1)
+        l_loss = self.criterion(out, y1).mean()
+        # soft_loss = self.criterion(out, y1)
+        # soft_loss = -(y2 * log_softmax_out).sum(axis=1)
+        return l_loss
 
     def nl_loss(self, x, y, alpha, T):
         out = self.forward(x)

@@ -15,7 +15,7 @@ for mother_seed in mother_seed_list:
     args = Namespace()
     args.num_iters = 5000
     # args.mode = 'uda'
-    args.method = 'base_nlc'
+    args.method = 'MME_nlc'
     args.alpha = 0.3
     args.T = 1.0
     args.lr = 0.01
@@ -28,7 +28,7 @@ for mother_seed in mother_seed_list:
     for i, (s, t) in enumerate(permutations(range(4), 2)):
         idx = i % len(device)
         args.source, args.target, args.seed = s, t, seed_list[i]
-        args.init = gh.regSearch(f':base/.*seed:{seed_list[i]}.*{s}.target.{t}')[0]
+        args.init = gh.regSearch(f':MME/.*seed:{seed_list[i]}.*{s}.target.{t}')[0]
         cmd = 'python main.py ' + ' '.join([f'--{k} {v}' for k, v in args.__dict__.items()]) + f' --device {device[idx]}'
         l[idx].append(cmd)
         break
