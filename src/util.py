@@ -11,7 +11,7 @@ class LR_Scheduler(object):
     def step(self):
         self.iter += 1
         for param_group in self.optimizer.param_groups:
-            param_group['lr'] = param_group['base_lr'] * ((1 + 5 * self.iter / self.num_iters) ** (-0.75))
+            param_group['lr'] = param_group['base_lr'] * ((1 + 0.0001 * self.iter) ** (-0.75))
         self.current_lr = self.optimizer.param_groups[-1]['lr']
     def get_lr(self):
         return self.current_lr
