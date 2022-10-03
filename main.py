@@ -78,6 +78,12 @@ def main(args):
         pseudo_label = pseudo_label.argmax(dim=1)
 
         ppc = getPPC(args, model, t_unlabeled_test_loader, pseudo_label)
+    elif 'nlc' in args.method:
+        model_path = args.mdh.gh.getModelPath(args.init)
+        init_model = ResModel('resnet34', output_dim=args.dataset['num_classes'])
+        load(model_path, init_model)
+        init_model.cuda()
+        init_model.eval()
 
     torch.cuda.empty_cache()
 
@@ -93,7 +99,7 @@ def main(args):
     for i in range(1, args.num_iters+1):
         opt.zero_grad()
 
-        sx, sy = next(s_iter)
+        sx, sy, _ = next(s_iter)
         sx, sy = sx.float().cuda(), sy.long().cuda()
 
         if 'LC' in args.method:
@@ -102,10 +108,14 @@ def main(args):
             s_loss = model.lc_loss(sf, sy, sy2, args.alpha)
         elif 'NL' in args.method:
             s_loss = model.nl_loss(sx, sy, args.alpha, args.T)
+        elif 'nlc' in args.method:
+            sy2 = F.softmax(init_model(sx.detach()) * args.T, dim=1)
+            l_loss, soft_loss = model.nlc_loss(sx, sy, sy2)
+            s_loss = ((1 - args.alpha) * l_loss + args.alpha * soft_loss).mean()
         else:
             s_loss = model.base_loss(sx, sy)
         
-        tx, ty = next(l_iter)
+        tx, ty, _ = next(l_iter)
         tx, ty = tx.float().cuda(), ty.long().cuda()
         t_loss = model.base_loss(tx, ty)
         loss = args.beta * s_loss + (1-args.beta) * t_loss
@@ -121,7 +131,7 @@ def main(args):
             u_loss = model.mme_loss(ux)
             u_loss.backward()
         elif 'CDAC' in args.method:
-            ux, _, ux1, ux2 = next(u_iter)
+            ux, _, ux1, ux2, _ = next(u_iter)
             ux, ux1, ux2 = ux.float().cuda(), ux1.float().cuda(), ux2.float().cuda()
 
             u_loss = model.cdac_loss(ux, ux1, ux2, i)
@@ -133,6 +143,8 @@ def main(args):
         if i % args.log_interval == 0:
             writer.add_scalar('LR', lr_scheduler.get_lr(), i)
             writer.add_scalar('Loss/s_loss', s_loss.item(), i)
+            writer.add_scalar('Loss/l_loss', l_loss.mean().item(), i)
+            writer.add_scalar('Loss/soft_loss', soft_loss.mean().item(), i)
             writer.add_scalar('Loss/t_loss', t_loss.item(), i)
             if 'MME' in args.method or 'CDAC' in args.method:
                 writer.add_scalar('Loss/u_loss', -u_loss.item(), i)
