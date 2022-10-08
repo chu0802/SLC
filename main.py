@@ -64,8 +64,6 @@ def main(args):
     params = model.get_params(args.lr)
     opt = torch.optim.SGD(params, momentum=args.momentum, weight_decay=args.weight_decay, nesterov=True)
     lr_scheduler = LR_Scheduler(opt, args.num_iters)
-    # src_scheduler = Lambda_Scheduler(num_iters=args.num_iters, base_lambda=args.lr, propotion=False)
-    # tgt_scheduler = Lambda_Scheduler(num_iters=args.num_iters, base_lambda=args.lr, propotion=True if 'CDAC' in args.method else False)
 
     if args.mode == 'uda':
         s_train_loader, s_test_loader, t_unlabeled_train_loader, t_unlabeled_test_loader = get_all_loaders(args)
@@ -97,8 +95,6 @@ def main(args):
     writer.add_text('Hash', args.mdh.getHashStr())
 
     for i in range(1, args.num_iters+1):
-        # src_l = src_scheduler.get_lambda()
-        # tgt_l = tgt_scheduler.get_lambda()
         opt.zero_grad()
 
         sx, sy = next(s_iter)
@@ -140,8 +136,6 @@ def main(args):
 
         opt.step()
         lr_scheduler.step()
-        # src_scheduler.step()
-        # tgt_scheduler.step()
 
         if i % args.log_interval == 0:
             writer.add_scalar('LR', lr_scheduler.get_lr(), i)
