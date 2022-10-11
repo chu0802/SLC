@@ -27,3 +27,20 @@ dataset_cfg:
                 - amazon
                 - dslr
                 - webcam
+        list:
+            all: _list.txt
+            3shot_train: _train_3.txt
+            3shot_test: _test_3.txt
+    DomainNet:
+        name: DomainNet
+        path: /home/chu980802/data/DomainNet
+        num_classes: 126
+        domains:
+                - clipart
+                - painting
+                - real
+                - sketch
+        list:
+            all: _list.txt
+            3shot_train: _train_3.txt
+            3shot_test: _test_3.txt
