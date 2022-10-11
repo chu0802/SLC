@@ -47,11 +47,18 @@ def arguments_parsing():
     p.add('--T', type=float, default=0.6)
 
     p.add('--note', type=str, default='')
+    p.add('--order', type=int, default=0)
     p.add('--init', type=str, default='')
+    p.add('--pretrained', type=str, default='')
     return p.parse_args()
 
-def getPPC(args, model, t_loader, label):
-    _, t_feat = prediction(t_loader, model)
+def getPPC(args, model, t_loaders, label):
+    tlloader, tuloader = t_loaders
+    _, tl_feat = prediction(tlloader, model)
+    _, tu_feat = prediction(tuloader, model)
+    t_feat = torch.vstack(tl_feat, tu_feat)
+    llabel = torch.tile(torch.arange(args.dataset['num_classes']), (3, 1)).T.flatten().cuda()
+    label = torch.hstack([llabel, label])
     centers = torch.vstack([t_feat[label == i].mean(dim=0) for i in range(args.dataset['num_classes'])])
     return ProtoClassifier(centers)
 
@@ -125,13 +132,13 @@ def main(args):
             ux, _ = next(u_iter)
             ux = ux.float().cuda()
             
-            u_loss = 0.3 * model.mme_loss(ux)
+            u_loss = model.mme_loss(ux)
             u_loss.backward()
         elif 'CDAC' in args.method:
             ux, _, ux1, ux2 = next(u_iter)
             ux, ux1, ux2 = ux.float().cuda(), ux1.float().cuda(), ux2.float().cuda()
 
-            u_loss = 0.3 * model.cdac_loss(ux, ux1, ux2, i)
+            u_loss = model.cdac_loss(ux, ux1, ux2, i)
             u_loss.backward()
 
         opt.step()
@@ -158,7 +165,7 @@ def main(args):
 
 if __name__ == '__main__':
     args = arguments_parsing()
-    args.mdh = ModelHandler(args, keys=['dataset', 'mode', 'method', 'source', 'target', 'seed', 'num_iters', 'alpha', 'T', 'init', 'note', 'update_interval', 'lr'])
+    args.mdh = ModelHandler(args, keys=['dataset', 'mode', 'method', 'source', 'target', 'seed', 'num_iters', 'alpha', 'T', 'init', 'note', 'update_interval', 'lr', 'order'])
     # replace the configuration
     args.dataset = args.dataset_cfg[args.dataset]
     main(args)
