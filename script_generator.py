@@ -3,34 +3,49 @@ from argparse import Namespace
 from pathlib import Path
 from mdh import GlobalHandler as GH
 from numpy.random import default_rng
-mmseed = 1126
-for yo in range(0, 6):
-    mother_seed_list = default_rng(seed=mmseed).integers(1e4, size=yo)
-    dir_ = Path('script')
-    dir_.mkdir(parents=True,exist_ok=True)
-    device = [0]*12
-    for mother_seed in mother_seed_list[yo-1:]:
-        rng = default_rng(seed=mother_seed)
-        seed_list = rng.integers(1e4, size=12)
+from random import shuffle
+from shutil import rmtree
 
+gh = GH()
+mmseed = 802
+dir_ = Path('script')
+rmtree(str(dir_))
+dir_.mkdir(parents=True, exist_ok=True)
+device = [0]*12
+# for DomainNet
+num_domains = 4
+
+valid_pairs = [6, 7, 3, 2, 10, 8, 4]
+num_repeated = 1
+# for OfficeHome
+# size = 12
+# valid_pairs = list(range(12))
+
+args_list = [] 
+pairs = list(permutations(range(num_domains), 2))
+for mother_seed in default_rng(seed=mmseed).integers(1e4, size=num_repeated):
+    
+    seed_list = default_rng(seed=mother_seed).integers(1e4, size=len(valid_pairs))
+    for i, (v, seed) in enumerate(zip(valid_pairs, seed_list)):
         args = Namespace()
-        args.num_iters = 6000
-        # args.mode = 'uda'
-        args.method = 'CDAC_LC'
+        args.num_iters = 30000
+        args.mode = 'ssda'
+        args.method = 'MME_LC'
+        args.dataset = 'DomainNet'
         args.alpha = 0.3
         args.T = 0.6
         args.lr = 0.01
-        args.update_interval = 500
-        args.note = f'mother_{mother_seed}_separate_lr'
-        gh = GH()
+        args.update_interval = 0
+        args.note = f'mother_{mother_seed}_combined'
+        args.source, args.target, args.seed, args.order = *pairs[v], seed, i
+        args.init = gh.regSearch(f':MME/.*seed:{args.seed}.*{args.source}.target.{args.target}')[0]
+        args_list.append(args)
+shuffle(args_list)
 
-        l = [[] for _ in range(len(device))]
-        for i, (s, t) in enumerate(permutations(range(4), 2)):
-            idx = i % len(device)
-            args.source, args.target, args.seed = s, t, seed_list[i]
-            args.init = gh.regSearch(f':CDAC/.*_lr_5.*seed:{seed_list[i]}.*{s}.target.{t}')[0]
-            cmd = 'python main.py ' + ' '.join([f'--{k} {v}' for k, v in args.__dict__.items()]) + f' --device {device[idx]}'
-            l[idx].append(cmd)
-        for i in range(len(device)):
-            with (dir_ / f'scriptMME_LC{i}.sh').open('a') as f:
-                f.write('\n'.join(l[i if yo % 2 == 1 else 11 - i])+'\n')
+for i, args in enumerate(args_list):
+    script_num = i % len(device)
+    args.device = device[script_num]
+    with (dir_ / f'scriptMME_LC{script_num}.sh').open('a') as f:
+        f.write('python main.py ' + ' '.join([f'--{k} {v}' for k, v in args.__dict__.items()]) + '\n')
+    with (dir_ / f'tmp.sh').open('a') as tf:
+        tf.write('python test.py ' + ' '.join([f'--{k} {v}' for k, v in args.__dict__.items()]) + '\n')

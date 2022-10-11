@@ -52,15 +52,21 @@ def arguments_parsing():
     p.add('--pretrained', type=str, default='')
     return p.parse_args()
 
-def getPPC(args, model, t_loaders, label):
-    tlloader, tuloader = t_loaders
-    _, tl_feat = prediction(tlloader, model)
-    _, tu_feat = prediction(tuloader, model)
-    t_feat = torch.vstack(tl_feat, tu_feat)
-    llabel = torch.tile(torch.arange(args.dataset['num_classes']), (3, 1)).T.flatten().cuda()
-    label = torch.hstack([llabel, label])
+def getPPC(args, model, t_loader):
+    _, t_feat = prediction(t_loader, model)
+    label = torch.tile(torch.arange(args.dataset['num_classes']), (3, 1)).T.flatten().cuda()
     centers = torch.vstack([t_feat[label == i].mean(dim=0) for i in range(args.dataset['num_classes'])])
     return ProtoClassifier(centers)
+
+# def getPPC(args, model, t_loaders, label):
+#     tlloader, tuloader = t_loaders
+#     _, tl_feat = prediction(tlloader, model)
+#     _, tu_feat = prediction(tuloader, model)
+#     t_feat = torch.vstack([tl_feat, tu_feat])
+#     llabel = torch.tile(torch.arange(args.dataset['num_classes']), (3, 1)).T.flatten().cuda()
+#     label = torch.hstack([llabel, label])
+#     centers = torch.vstack([t_feat[label == i].mean(dim=0) for i in range(args.dataset['num_classes'])])
+#     return ProtoClassifier(centers)
 
 def main(args):
     os.environ['CUDA_VISIBLE_DEVICES'] = args.device
@@ -83,10 +89,12 @@ def main(args):
         load(model_path, init_model)
         init_model.cuda()
 
-        pseudo_label, _ = prediction(t_unlabeled_test_loader, init_model)
-        pseudo_label = pseudo_label.argmax(dim=1)
+        ppc = getPPC(args, model, t_labeled_test_loader)
 
-        ppc = getPPC(args, model, t_unlabeled_test_loader, pseudo_label)
+        # pseudo_label, _ = prediction(t_unlabeled_test_loader, init_model)
+        # pseudo_label = pseudo_label.argmax(dim=1)
+
+        # ppc = getPPC(args, model, (t_labeled_test_loader, t_unlabeled_test_loader), pseudo_label)
 
     torch.cuda.empty_cache()
 
@@ -159,7 +167,8 @@ def main(args):
             writer.add_scalar('Acc/t_acc.', t_acc, i)
 
         if args.update_interval > 0 and i % args.update_interval == 0 and 'LC' in args.method:
-            ppc = getPPC(args, model, t_unlabeled_test_loader, pseudo_label)
+            # ppc = getPPC(args, model, t_unlabeled_test_loader, pseudo_label)
+            ppc = getPPC(args, model, t_labeled_test_loader)
         
     save(args.mdh.getModelPath(), model)
 
