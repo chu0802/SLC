@@ -35,8 +35,8 @@ for mother_seed in default_rng(seed=mmseed).integers(1e4, size=num_repeated):
         args.alpha = 0.3
         args.T = 0.6
         args.lr = 0.01
-        args.update_interval = 0
-        args.note = f'mother_{mother_seed}_combined'
+        args.update_interval = 5000
+        args.note = f'mother_{mother_seed}'
         args.source, args.target, args.seed, args.order = *pairs[v], seed, i
         args.init = gh.regSearch(f':MME/.*seed:{args.seed}.*{args.source}.target.{args.target}')[0]
         args_list.append(args)
@@ -45,7 +45,7 @@ shuffle(args_list)
 for i, args in enumerate(args_list):
     script_num = i % len(device)
     args.device = device[script_num]
-    with (dir_ / f'scriptMME_LC{script_num}.sh').open('a') as f:
+    with (dir_ / f'scriptMME_LC{script_num+7}.sh').open('a') as f:
         f.write('python main.py ' + ' '.join([f'--{k} {v}' for k, v in args.__dict__.items()]) + '\n')
     with (dir_ / f'tmp.sh').open('a') as tf:
         tf.write('python test.py ' + ' '.join([f'--{k} {v}' for k, v in args.__dict__.items()]) + '\n')
