@@ -45,7 +45,7 @@ shuffle(args_list)
 for i, args in enumerate(args_list):
     script_num = i % len(device)
     args.device = device[script_num]
-    with (dir_ / f'scriptMME_LC{script_num+7}.sh').open('a') as f:
+    with (dir_ / f'scriptMME_LC{script_num}.sh').open('a') as f:
         f.write('python main.py ' + ' '.join([f'--{k} {v}' for k, v in args.__dict__.items()]) + '\n')
     with (dir_ / f'tmp.sh').open('a') as tf:
         tf.write('python test.py ' + ' '.join([f'--{k} {v}' for k, v in args.__dict__.items()]) + '\n')
