@@ -3,11 +3,11 @@ import numpy as np
 import torch
 
 class LR_Scheduler(object):
-    def __init__(self, optimizer, num_iters, final_lr=None):
+    def __init__(self, optimizer, num_iters, step=0, final_lr=None):
         # if final_lr: use cos scheduler, otherwise, use gamma scheduler
         self.final_lr = final_lr
         self.optimizer = optimizer
-        self.iter = 0
+        self.iter = step
         self.num_iters = num_iters
         self.current_lr = optimizer.param_groups[-1]['lr']
     def step(self):
@@ -16,8 +16,8 @@ class LR_Scheduler(object):
             self.current_lr = param_group['lr'] = (
                 self.final_lr + 0.5 * (base - self.final_lr)*(1 + np.cos(np.pi * self.iter/self.num_iters))
                 if self.final_lr
-                # else base * ((1 + 0.0001 * self.iter) ** (-0.75))
-                else base * ((1 + 5 * self.iter / self.num_iters) ** (-0.75))
+                else base * ((1 + 0.0001 * self.iter) ** (-0.75))
+                # else base * ((1 + 5 * self.iter / self.num_iters) ** (-0.75))
             )
         self.iter += 1
     def refresh(self):
