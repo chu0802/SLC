@@ -119,8 +119,8 @@ class ImageList(Dataset):
         if self.strong_transform:
             img1 = self.strong_transform(img)
             img2 = self.strong_transform(img)
-            return self.transform(img), label, img1, img2
-        return self.transform(img), label
+            return self.transform(img), label, img1, img2, idx
+        return self.transform(img), label, idx
 
 class _InfiniteSampler(Sampler):
     """Wraps another Sampler to yield an infinite stream."""
