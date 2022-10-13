@@ -30,15 +30,16 @@ for mother_seed in default_rng(seed=mmseed).integers(1e4, size=num_repeated):
         args = Namespace()
         args.num_iters = 50000
         args.mode = 'ssda'
-        args.method = 'CDAC_LC'
+        args.method = 'MME_LC'
         args.dataset = 'DomainNet'
-        args.alpha = 0.3
+        args.alpha = 0.1
         args.T = 0.6
-        args.lr = 0.01
-        args.update_interval = 500
-        args.note = f'mother_{mother_seed}'
+        # args.lr = 0.01
+        args.gamma = 0.99
+        # args.update_interval = 500
+        args.note = f'mother_{mother_seed}_memory_bank'
         args.source, args.target, args.seed, args.order = *pairs[v], seed, i
-        args.init = gh.regSearch(f':CDAC/.*seed:{args.seed}.*{args.source}.target.{args.target}')[0]
+        args.init = gh.regSearch(f':MME/.*seed:{args.seed}.*{args.source}.target.{args.target}')[0]
         args_list.append(args)
 shuffle(args_list)
 
