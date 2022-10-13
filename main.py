@@ -14,6 +14,7 @@ from model import ResModel, ProtoClassifier
 from util import set_seed, save, load, LR_Scheduler, Lambda_Scheduler
 from dataset import get_all_loaders
 from evaluation import evaluation, prediction
+from mcl_loss import Prototype
 from mdh import ModelHandler
 
 def arguments_parsing():
@@ -33,6 +34,7 @@ def arguments_parsing():
     p.add('--num_iters', type=int, default=5000)
     p.add('--alpha', type=float, default=0.3)
     p.add('--beta', type=float, default=0.5)
+    p.add('--gamma', type=float, default=0.99)
 
     p.add('--eval_interval', type=int, default=1000)
     p.add('--log_interval', type=int, default=100)
@@ -97,12 +99,15 @@ def main(args):
         load(model_path, init_model)
         init_model.cuda()
 
-        # ppc = getPPC(args, model, t_labeled_test_loader)
-
         pseudo_label, _ = prediction(t_unlabeled_test_loader, init_model)
         pseudo_label = pseudo_label.argmax(dim=1)
 
-        ppc = getPPC(args, model, t_unlabeled_test_loader, pseudo_label)
+        ppc = ProtoClassifier(args.dataset['num_classes'], pseudo_label)
+        ppc.init(model, t_unlabeled_test_loader)
+        # ppc = getPPC(args, model, t_unlabeled_test_loader, pseudo_label)
+
+    if 'MCL' in args.method:
+        proto = Prototype(C=args.dataset['num_classes'], dim=512)
 
     torch.cuda.empty_cache()
 
@@ -120,22 +125,32 @@ def main(args):
     for i in range(1, args.num_iters+1):
         opt.zero_grad()
 
-        sx, sy = next(s_iter)
+        sx, sy, _ = next(s_iter)
         sx, sy = sx.float().cuda(), sy.long().cuda()
 
+        if 'CDAC' in args.method or 'MCL' in args.method:
+            ux, _, ux1, ux2, u_idx = next(u_iter)
+            ux, ux1, ux2,  u_idx = ux.float().cuda(), ux1.float().cuda(), ux2.float().cuda(), u_idx.long()
+        else:  
+            ux, _, u_idx = next(u_iter)
+            ux, u_idx = ux.float().cuda(), u_idx.long()
+
+        sf = model.get_features(sx)
+
         if 'LC' in args.method:
-            sf = model.get_features(sx)
             sy2 = ppc(sf.detach(), args.T)
             s_loss = model.lc_loss(sf, sy, sy2, args.alpha)
+
+            ppc.update_center(ux, u_idx, model, args.gamma)
         elif 'NL' in args.method:
-            s_loss = model.nl_loss(sx, sy, args.alpha, args.T)
+            s_loss = model.nl_loss(sf, sy, args.alpha, args.T)
         else:
-            s_loss = model.base_loss(sx, sy)
+            s_loss = model.feature_base_loss(sf, sy)
         
         if args.mode == 'uda':
             loss = s_loss
         elif args.mode == 'ssda':
-            tx, ty = next(l_iter)
+            tx, ty, _ = next(l_iter)
             tx, ty = tx.float().cuda(), ty.long().cuda()
             t_loss = model.base_loss(tx, ty)
             loss = args.beta * s_loss + (1-args.beta) * t_loss
@@ -145,17 +160,22 @@ def main(args):
 
         opt.zero_grad()
         if 'MME' in args.method:  
-            ux, _ = next(u_iter)
-            ux = ux.float().cuda()
+            # ux, _ = next(u_iter)
+            # ux = ux.float().cuda()
             
             u_loss = model.mme_loss(ux)
             u_loss.backward()
         elif 'CDAC' in args.method:
-            ux, _, ux1, ux2 = next(u_iter)
-            ux, ux1, ux2 = ux.float().cuda(), ux1.float().cuda(), ux2.float().cuda()
+            # ux, _, ux1, ux2 = next(u_iter)
+            # ux, ux1, ux2 = ux.float().cuda(), ux1.float().cuda(), ux2.float().cuda()
 
             u_loss = model.cdac_loss(ux, ux1, ux2, i)
             u_loss.backward()
+        elif 'MCL' in args.method:
+            u_loss = model.mcl_loss(ux, ux1, proto, i, args.dataset['num_classes'])
+            u_loss.backward()
+
+            proto.update(sf, sy, i, norm=True)
 
         opt.step()
         lr_scheduler.step()
@@ -174,15 +194,15 @@ def main(args):
             t_acc = evaluation(t_unlabeled_test_loader, model)
             writer.add_scalar('Acc/t_acc.', t_acc, i)
 
-        if args.update_interval > 0 and i % args.update_interval == 0 and 'LC' in args.method:
-            ppc = getPPC(args, model, t_unlabeled_test_loader, pseudo_label)
+        # if args.update_interval > 0 and i % args.update_interval == 0 and 'LC' in args.method:
+        #     ppc = getPPC(args, model, t_unlabeled_test_loader, pseudo_label)
             # ppc = getPPC(args, model, t_labeled_test_loader)
         
     save(args.mdh.getModelPath(), model)
 
 if __name__ == '__main__':
     args = arguments_parsing()
-    args.mdh = ModelHandler(args, keys=['dataset', 'mode', 'method', 'source', 'target', 'seed', 'num_iters', 'alpha', 'T', 'init', 'note', 'update_interval', 'lr', 'order'])
+    args.mdh = ModelHandler(args, keys=['dataset', 'mode', 'method', 'source', 'target', 'seed', 'num_iters', 'alpha', 'T', 'init', 'note', 'update_interval', 'lr', 'order', 'gamma'])
     # replace the configuration
     args.dataset = args.dataset_cfg[args.dataset]
     main(args)
