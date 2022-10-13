@@ -28,17 +28,17 @@ for mother_seed in default_rng(seed=mmseed).integers(1e4, size=num_repeated):
     seed_list = default_rng(seed=mother_seed).integers(1e4, size=len(valid_pairs))
     for i, (v, seed) in enumerate(zip(valid_pairs, seed_list)):
         args = Namespace()
-        args.num_iters = 30000
+        args.num_iters = 50000
         args.mode = 'ssda'
-        args.method = 'MME_LC'
+        args.method = 'CDAC_LC'
         args.dataset = 'DomainNet'
         args.alpha = 0.3
         args.T = 0.6
         args.lr = 0.01
-        args.update_interval = 5000
+        args.update_interval = 500
         args.note = f'mother_{mother_seed}'
         args.source, args.target, args.seed, args.order = *pairs[v], seed, i
-        args.init = gh.regSearch(f':MME/.*seed:{args.seed}.*{args.source}.target.{args.target}')[0]
+        args.init = gh.regSearch(f':CDAC/.*seed:{args.seed}.*{args.source}.target.{args.target}')[0]
         args_list.append(args)
 shuffle(args_list)
 

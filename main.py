@@ -76,10 +76,15 @@ def main(args):
     set_seed(args.seed)
 
     model = ResModel('resnet34', output_dim=args.dataset['num_classes']).cuda()
-
+    # model = ResModel('resnet34', output_dim=args.dataset['num_classes'])
+    # model_path = args.mdh.gh.getModelPath(args.pretrained)
+    # load(model_path, model)
+    # model.cuda()
+    
     params = model.get_params(args.lr)
     opt = torch.optim.SGD(params, momentum=args.momentum, weight_decay=args.weight_decay, nesterov=True)
     lr_scheduler = LR_Scheduler(opt, args.num_iters)
+    # lr_scheduler = LR_Scheduler(opt, args.num_iters, step=30000)
 
     if args.mode == 'uda':
         s_train_loader, s_test_loader, t_unlabeled_train_loader, t_unlabeled_test_loader = get_all_loaders(args)
@@ -111,7 +116,7 @@ def main(args):
 
     writer = SummaryWriter(args.mdh.getLogPath())
     writer.add_text('Hash', args.mdh.getHashStr())
-
+    # for i in range(30001, 50001):
     for i in range(1, args.num_iters+1):
         opt.zero_grad()
 
