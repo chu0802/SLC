@@ -54,6 +54,7 @@ def arguments_parsing():
     p.add('--pretrained', type=str, default='')
     return p.parse_args()
 
+# for target centers
 # def getPPC(args, model, t_loader):
 #     _, t_feat = prediction(t_loader, model)
 #     label = torch.tile(torch.arange(args.dataset['num_classes']), (3, 1)).T.flatten().cuda()
@@ -102,9 +103,9 @@ def main(args):
         pseudo_label, _ = prediction(t_unlabeled_test_loader, init_model)
         pseudo_label = pseudo_label.argmax(dim=1)
 
-        ppc = ProtoClassifier(args.dataset['num_classes'], pseudo_label)
-        ppc.init(model, t_unlabeled_test_loader)
-        # ppc = getPPC(args, model, t_unlabeled_test_loader, pseudo_label)
+        # ppc = ProtoClassifier(args.dataset['num_classes'], pseudo_label)
+        # ppc.init(model, t_unlabeled_test_loader)
+        ppc = getPPC(args, model, t_unlabeled_test_loader, pseudo_label)
 
     if 'MCL' in args.method:
         proto = Prototype(C=args.dataset['num_classes'], dim=512)
@@ -130,7 +131,7 @@ def main(args):
 
         if 'CDAC' in args.method or 'MCL' in args.method:
             ux, _, ux1, ux2, u_idx = next(u_iter)
-            ux, ux1, ux2,  u_idx = ux.float().cuda(), ux1.float().cuda(), ux2.float().cuda(), u_idx.long()
+            ux, ux1, ux2, u_idx = ux.float().cuda(), ux1.float().cuda(), ux2.float().cuda(), u_idx.long()
         else:  
             ux, _, u_idx = next(u_iter)
             ux, u_idx = ux.float().cuda(), u_idx.long()
@@ -140,8 +141,9 @@ def main(args):
         if 'LC' in args.method:
             sy2 = ppc(sf.detach(), args.T)
             s_loss = model.lc_loss(sf, sy, sy2, args.alpha)
-
-            ppc.update_center(ux, u_idx, model, args.gamma)
+            
+            # if args.update_interval > 0:
+            #     ppc.update_center(ux, u_idx, model, args.gamma)
         elif 'NL' in args.method:
             s_loss = model.nl_loss(sf, sy, args.alpha, args.T)
         else:
@@ -185,7 +187,7 @@ def main(args):
             writer.add_scalar('Loss/s_loss', s_loss.item(), i)
             if args.mode == 'ssda':
                 writer.add_scalar('Loss/t_loss', t_loss.item(), i)
-            if 'MME' in args.method or 'CDAC' in args.method:
+            if 'MME' in args.method or 'CDAC' in args.method or 'MCL' in args.method:
                 writer.add_scalar('Loss/u_loss', -u_loss.item(), i)
         
         if i % args.eval_interval == 0:
@@ -194,8 +196,8 @@ def main(args):
             t_acc = evaluation(t_unlabeled_test_loader, model)
             writer.add_scalar('Acc/t_acc.', t_acc, i)
 
-        # if args.update_interval > 0 and i % args.update_interval == 0 and 'LC' in args.method:
-        #     ppc = getPPC(args, model, t_unlabeled_test_loader, pseudo_label)
+        if args.update_interval > 0 and i % args.update_interval == 0 and 'LC' in args.method:
+            ppc = getPPC(args, model, t_unlabeled_test_loader, pseudo_label)
             # ppc = getPPC(args, model, t_labeled_test_loader)
         
     save(args.mdh.getModelPath(), model)

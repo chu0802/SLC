@@ -12,15 +12,14 @@ dir_ = Path('script')
 rmtree(str(dir_))
 dir_.mkdir(parents=True, exist_ok=True)
 device = [0]*12
+num_repeated = 1
+
 # for DomainNet
 num_domains = 4
-
 valid_pairs = [6, 7, 3, 2, 10, 8, 4]
-num_repeated = 1
 # for OfficeHome
-# size = 12
+# num_domains = 4
 # valid_pairs = list(range(12))
-
 args_list = [] 
 pairs = list(permutations(range(num_domains), 2))
 for mother_seed in default_rng(seed=mmseed).integers(1e4, size=num_repeated):
@@ -30,16 +29,16 @@ for mother_seed in default_rng(seed=mmseed).integers(1e4, size=num_repeated):
         args = Namespace()
         args.num_iters = 50000
         args.mode = 'ssda'
-        args.method = 'MME_LC'
+        args.method = 'CDAC_LC'
         args.dataset = 'DomainNet'
-        args.alpha = 0.1
+        args.alpha = 0.3
         args.T = 0.6
-        # args.lr = 0.01
+        args.lr = 0.01
         args.gamma = 0.99
-        # args.update_interval = 500
-        args.note = f'mother_{mother_seed}_memory_bank'
+        args.update_interval = 500
+        args.note = f'mother_{mother_seed}'
         args.source, args.target, args.seed, args.order = *pairs[v], seed, i
-        args.init = gh.regSearch(f':MME/.*seed:{args.seed}.*{args.source}.target.{args.target}')[0]
+        args.init = gh.regSearch(f':CDAC/.*seed:{args.seed}.*{args.source}.target.{args.target}')[0]
         args_list.append(args)
 shuffle(args_list)
 

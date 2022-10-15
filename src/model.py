@@ -18,41 +18,41 @@ def init_weights(m):
         m.weight.data.normal_(1.0, 0.1)
         m.bias.data.fill_(0)
 
-class ProtoClassifier(nn.Module):
-    def __init__(self, size, label):
-        super(ProtoClassifier, self).__init__()
-        self.center = None
-        self.label = label
-        self.size = size
-    @torch.no_grad()
-    def init(self, model, t_loader):
-        _, t_feat = prediction(t_loader, model)
-        self.center = torch.vstack([t_feat[self.label == i].mean(dim=0) for i in range(self.size)]).requires_grad_(False)
-    @torch.no_grad()
-    def update_center(self, x, idx, model, p=0.9):
-        model.eval()
-
-        f = model.get_features(x)
-        c = torch.stack([f[self.label[idx] == i].mean(dim=0) for i in range(self.size)])
-        c_idx = torch.unique(self.label[idx])
-        self.center[c_idx] = p * self.center[c_idx] + (1 - p) * c[c_idx]
-
-        model.train()
-    @torch.no_grad()
-    def forward(self, x, T=1.0):
-        dist = torch.cdist(x, self.center)
-        return F.softmax(-dist*T, dim=1)
-
 # class ProtoClassifier(nn.Module):
-#     def __init__(self, center):
+#     def __init__(self, size, label):
 #         super(ProtoClassifier, self).__init__()
-#         self.center = center.requires_grad_(False)
-#     def update_center(self, c, idx, p=0.99):
-#         self.center[idx] = p * self.center[idx] + (1 - p) * c[idx]
+#         self.center = None
+#         self.label = label
+#         self.size = size
+#     @torch.no_grad()
+#     def init(self, model, t_loader):
+#         _, t_feat = prediction(t_loader, model)
+#         self.center = torch.vstack([t_feat[self.label == i].mean(dim=0) for i in range(self.size)]).requires_grad_(False)
+#     @torch.no_grad()
+#     def update_center(self, x, idx, model, p=0.9):
+#         model.eval()
+
+#         f = model.get_features(x)
+#         c = torch.stack([f[self.label[idx] == i].mean(dim=0) for i in range(self.size)])
+#         c_idx = torch.unique(self.label[idx])
+#         self.center[c_idx] = p * self.center[c_idx] + (1 - p) * c[c_idx]
+
+#         model.train()
 #     @torch.no_grad()
 #     def forward(self, x, T=1.0):
 #         dist = torch.cdist(x, self.center)
 #         return F.softmax(-dist*T, dim=1)
+
+class ProtoClassifier(nn.Module):
+    def __init__(self, center):
+        super(ProtoClassifier, self).__init__()
+        self.center = center.requires_grad_(False)
+    def update_center(self, c, idx, p=0.99):
+        self.center[idx] = p * self.center[idx] + (1 - p) * c[idx]
+    @torch.no_grad()
+    def forward(self, x, T=1.0):
+        dist = torch.cdist(x, self.center)
+        return F.softmax(-dist*T, dim=1)
 
 class ResBase(nn.Module):
     def __init__(self, backbone='resnet34', **kwargs):
@@ -162,7 +162,7 @@ class ResModel(nn.Module):
         f1, f2 = f.chunk(2)
         out1, out2 = out.chunk(2)
 
-        pseudo_label = F.softmax(out1.detach() * 1, dim=1)
+        pseudo_label = F.softmax(out1.detach() * 1.25, dim=1)
         max_probs, target_u = torch.max(pseudo_label, dim=1)
         consis_mask = max_probs.ge(0.95).float()
         L_pl = (F.cross_entropy(out2, target_u, reduction='none') * consis_mask).mean()
@@ -173,7 +173,7 @@ class ResModel(nn.Module):
 
         L_ot = ot_loss(proto, f1, f2, num_classes)
 
-        return L_pl + L_con_cls + L_ot * (1 if i > 250 else 0)
+        return L_pl + L_con_cls * 0.2 + L_ot * (1 if i > 250 else 0)
 
 class GradReverse(Function):
     @staticmethod
