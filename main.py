@@ -171,7 +171,7 @@ def main(args):
             # ux, _, ux1, ux2 = next(u_iter)
             # ux, ux1, ux2 = ux.float().cuda(), ux1.float().cuda(), ux2.float().cuda()
 
-            u_loss = model.cdac_loss(ux, ux1, ux2, i)
+            u_loss, num_pl, ratio_pl = model.cdac_loss(ux, ux1, ux2, i)
             u_loss.backward()
         elif 'MCL' in args.method:
             u_loss = model.mcl_loss(ux, ux1, proto, i, args.dataset['num_classes'])
@@ -189,6 +189,10 @@ def main(args):
                 writer.add_scalar('Loss/t_loss', t_loss.item(), i)
             if 'MME' in args.method or 'CDAC' in args.method or 'MCL' in args.method:
                 writer.add_scalar('Loss/u_loss', -u_loss.item(), i)
+
+            if 'CDAC' in args.method:
+                writer.add_scalar('PseudoLabel/numbers', num_pl, i)
+                writer.add_scalar('PseudoLabel/ratio', ratio_pl, i)
         
         if i % args.eval_interval == 0:
             # s_acc = evaluation(s_test_loader, model)

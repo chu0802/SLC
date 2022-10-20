@@ -152,10 +152,13 @@ class ResModel(nn.Module):
         mp, pl = torch.max(prob.detach(), dim=1)
         mask = mp.ge(0.95).float()
 
+        num_pl = mask.sum().item()
+        ratio_pl = mask.mean().item()
+
         pl_loss = (F.cross_entropy(out2, pl, reduction='none') * mask).mean()
         con_loss = F.mse_loss(prob1, prob2)
 
-        return aac_loss + pl_loss + w_cons * con_loss
+        return aac_loss + pl_loss + w_cons * con_loss, num_pl, ratio_pl
     def mcl_loss(self, x1, x2, proto, i, num_classes):
         f = self.get_features(torch.cat((x1, x2), dim=0))
         out = self.get_predictions(f)
