@@ -144,13 +144,15 @@ class ResModel(nn.Module):
         prob, prob1 = F.softmax(out, dim=1), F.softmax(out1, dim=1)
         aac_loss = advbce_unlabeled(target=None, f=f, prob=prob, prob1=prob1, bce=self.bce)
 
-        with torch.no_grad():
-            out = init_model(x)
-            out1 = init_model(x1)
-            out2 = init_model(x2)
-        # out = self.c(f)
-        # out1 = self.c(f1)
-        # out2 = self.c(f2)
+        if init_model:
+            with torch.no_grad():
+                out = init_model(x)
+                out1 = init_model(x1)
+                out2 = init_model(x2)
+        else:
+            out = self.c(f)
+            out1 = self.c(f1)
+            out2 = self.c(f2)
 
         prob, prob1, prob2 = F.softmax(out, dim=1), F.softmax(out1, dim=1), F.softmax(out2, dim=1)
         mp, pl = torch.max(prob.detach(), dim=1)
