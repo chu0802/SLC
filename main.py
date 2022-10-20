@@ -102,7 +102,7 @@ def main(args):
 
         pseudo_label, _ = prediction(t_unlabeled_test_loader, init_model)
         pseudo_label = pseudo_label.argmax(dim=1)
-
+        init_model.eval()
         # ppc = ProtoClassifier(args.dataset['num_classes'], pseudo_label)
         # ppc.init(model, t_unlabeled_test_loader)
         ppc = getPPC(args, model, t_unlabeled_test_loader, pseudo_label)
@@ -171,7 +171,7 @@ def main(args):
             # ux, _, ux1, ux2 = next(u_iter)
             # ux, ux1, ux2 = ux.float().cuda(), ux1.float().cuda(), ux2.float().cuda()
 
-            u_loss, num_pl, ratio_pl = model.cdac_loss(ux, ux1, ux2, i)
+            u_loss, num_pl, ratio_pl = model.cdac_loss(ux, ux1, ux2, i, init_model if 'LC' in args.method else None)
             u_loss.backward()
         elif 'MCL' in args.method:
             u_loss = model.mcl_loss(ux, ux1, proto, i, args.dataset['num_classes'])
