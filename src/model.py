@@ -145,9 +145,9 @@ class ResModel(nn.Module):
         aac_loss = advbce_unlabeled(target=None, f=f, prob=prob, prob1=prob1, bce=self.bce)
 
         with torch.no_grad():
-            out = init_model(f)
-            out1 = init_model(f1)
-            out2 = init_model(f2)
+            out = init_model(x)
+            out1 = init_model(x1)
+            out2 = init_model(x2)
         # out = self.c(f)
         # out1 = self.c(f1)
         # out2 = self.c(f2)
