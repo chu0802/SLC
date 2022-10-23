@@ -38,9 +38,10 @@ TRANSFORM = {
 }
 
 def get_all_loaders(args):
-    root, s_name, t_name = Path(args.dataset['path']), args.dataset['domains'][args.source], args.dataset['domains'][args.target]
-
-    s_list_file = s_name + args.dataset['list']['all']
+    s_name, t_name = args.dataset['domains'][args.source], args.dataset['domains'][args.target]
+    root, text_root = Path(args.dataset['path']), Path(args.dataset['text_path'])
+    
+    s_list_file = text_root / s_name / args.dataset['list']['all']
     s_train_set = ImageList(root, s_list_file, transform=TRANSFORM['train'])
     s_train_loader = get_loader(s_train_set, args.seed, args.bsize, train=True)
 
@@ -48,7 +49,7 @@ def get_all_loaders(args):
     s_test_loader = get_loader(s_test_set, args.seed, args.bsize*2, train=False)
 
     if args.mode == 'uda':
-        t_list_file = t_name + args.dataset['list']['all']
+        t_list_file = text_root / t_name / args.dataset['list']['all']
 
         t_unlabeled_train_set = ImageList(root, t_list_file, transform=TRANSFORM['train'])
         t_unlabeled_train_loader = get_loader(t_unlabeled_train_set, args.seed, args.bsize, train=True)
@@ -58,8 +59,9 @@ def get_all_loaders(args):
 
         return s_train_loader, s_test_loader, t_unlabeled_train_loader, t_unlabeled_test_loader
     elif args.mode == 'ssda':
-        t_train_list_file = t_name + args.dataset['list']['3shot_train']
-        t_test_list_file = t_name + args.dataset['list']['3shot_test']
+        t_train_list_file = text_root / t_name / args.dataset['list'][args.shot]['train']
+        t_test_list_file = text_root / t_name / args.dataset['list'][args.shot]['test']
+        t_val_list_file = text_root / t_name / args.dataset['list']['val']
 
         t_labeled_train_set = ImageList(root, t_train_list_file, transform=TRANSFORM['train'])
         t_labeled_train_loader = get_loader(t_labeled_train_set, args.seed, args.bsize, train=True)
@@ -73,7 +75,10 @@ def get_all_loaders(args):
         t_unlabeled_test_set = ImageList(root, t_test_list_file, transform=TRANSFORM['test'])
         t_unlabeled_test_loader = get_loader(t_unlabeled_test_set, args.seed, args.bsize*2, train=False)
 
-        return s_train_loader, s_test_loader, t_labeled_train_loader, t_labeled_test_loader, t_unlabeled_train_loader, t_unlabeled_test_loader
+        t_val_set = ImageList(root, t_val_list_file, transform=TRANSFORM['test'])
+        t_val_loader = get_loader(t_val_set, args.seed, args.bsize, train=False)
+
+        return s_train_loader, s_test_loader, t_labeled_train_loader, t_labeled_test_loader, t_unlabeled_train_loader, t_unlabeled_test_loader, t_val_loader
 
 def pil_loader(path: str):
     with open(path, 'rb') as f:

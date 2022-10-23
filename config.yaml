@@ -9,6 +9,7 @@ dataset_cfg:
     OfficeHome:
         name: OfficeHome
         path: /home/chu980802/data/OfficeHome
+        text_path: /home/chu980802/data/OfficeHome/text
         num_classes: 65
         domains:
                 - Art
@@ -16,24 +17,36 @@ dataset_cfg:
                 - Product
                 - RealWorld
         list:
-            all: _list.txt
-            3shot_train: _train_3.txt
-            3shot_test: _test_3.txt
+            all: all.txt
+            1shot:
+                train: train_1.txt
+                test: test_1.txt
+            3shot:
+                train: train_3.txt
+                test: test_3.txt
+            val: val.txt
     Office31:
         name: Office31
         path: /home/chu980802/data/Office31
+        text_path: /home/chu980802/data/Office31/text
         num_classes: 31
         domains:
                 - amazon
                 - dslr
                 - webcam
         list:
-            all: _list.txt
-            3shot_train: _train_3.txt
-            3shot_test: _test_3.txt
+            all: all.txt
+            1shot:
+                train: train_1.txt
+                test: test_1.txt
+            3shot:
+                train: train_3.txt
+                test: test_3.txt
+            val: val.txt
     DomainNet:
         name: DomainNet
         path: /home/chu980802/data/DomainNet
+        text_path: /home/chu980802/data/DomainNet/text
         num_classes: 126
         domains:
                 - clipart
@@ -41,6 +54,11 @@ dataset_cfg:
                 - real
                 - sketch
         list:
-            all: _list.txt
-            3shot_train: _train_3.txt
-            3shot_test: _test_3.txt
+            all: all.txt
+            1shot:
+                train: train_1.txt
+                test: test_1.txt
+            3shot:
+                train: train_3.txt
+                test: test_3.txt
+            val: val.txt
