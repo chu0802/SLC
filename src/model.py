@@ -44,11 +44,22 @@ def init_weights(m):
 #         return F.softmax(-dist*T, dim=1)
 
 class ProtoClassifier(nn.Module):
-    def __init__(self, center):
+    def __init__(self, size):
         super(ProtoClassifier, self).__init__()
+        self.center = None
+        self.label = None
+        self.size = size
+    def init(self, model, t_loader):
+        t_pred, t_feat = prediction(t_loader, model)
+        label = t_pred.argmax(dim=1)
+        center = torch.nan_to_num(torch.vstack([t_feat[label == i].mean(dim=0) for i in range(self.size)]))
+        invalid_idx = center.sum(dim=1) == 0
+        if invalid_idx.any() and self.label is not None:
+            old_center = torch.vstack([t_feat[self.label == i].mean(dim=0) for i in range(self.size)])
+            center[invalid_idx] = old_center[invalid_idx]
+        else:
+            self.label = label
         self.center = center.requires_grad_(False)
-    def update_center(self, c, idx, p=0.99):
-        self.center[idx] = p * self.center[idx] + (1 - p) * c[idx]
     @torch.no_grad()
     def forward(self, x, T=1.0):
         dist = torch.cdist(x, self.center)
@@ -132,7 +143,7 @@ class ResModel(nn.Module):
         out = self.forward(x, reverse=True)
         out = F.softmax(out, dim=1)
         return lamda * torch.mean(torch.sum(out * (torch.log(out + 1e-10)), dim=1))
-    def cdac_loss(self, x, x1, x2, i, init_model=None):
+    def cdac_loss(self, x, y, x1, x2, i):
         w_cons = 30 * sigmoid_rampup(i, 2000)
         f = self.f(x)
         f1 = self.f(x1)
@@ -144,27 +155,23 @@ class ResModel(nn.Module):
         prob, prob1 = F.softmax(out, dim=1), F.softmax(out1, dim=1)
         aac_loss = advbce_unlabeled(target=None, f=f, prob=prob, prob1=prob1, bce=self.bce)
 
-        if init_model:
-            with torch.no_grad():
-                out = init_model(x)
-                out1 = init_model(x1)
-                out2 = init_model(x2)
-        else:
-            out = self.c(f)
-            out1 = self.c(f1)
-            out2 = self.c(f2)
+        out = self.c(f)
+        out1 = self.c(f1)
+        out2 = self.c(f2)
 
         prob, prob1, prob2 = F.softmax(out, dim=1), F.softmax(out1, dim=1), F.softmax(out2, dim=1)
         mp, pl = torch.max(prob.detach(), dim=1)
+        mmask = mp.ge(0.95)
         mask = mp.ge(0.95).float()
 
         num_pl = mask.sum().item()
         ratio_pl = mask.mean().item()
+        acc_pl = 0 if num_pl == 0 else (pl[mmask] == y[mmask]).float().sum().item() / num_pl
 
         pl_loss = (F.cross_entropy(out2, pl, reduction='none') * mask).mean()
         con_loss = F.mse_loss(prob1, prob2)
 
-        return aac_loss + pl_loss + w_cons * con_loss, num_pl, ratio_pl
+        return aac_loss + pl_loss + w_cons * con_loss, num_pl, ratio_pl, acc_pl
     def mcl_loss(self, x1, x2, proto, i, num_classes):
         f = self.get_features(torch.cat((x1, x2), dim=0))
         out = self.get_predictions(f)
