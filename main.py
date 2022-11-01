@@ -15,7 +15,7 @@ from util import set_seed, save, load, LR_Scheduler, Lambda_Scheduler
 from dataset import get_all_loaders
 from evaluation import evaluation, prediction
 from mcl_loss import Prototype
-from mdh import ModelHandler
+from mdh import ModelHandler, GlobalHandler
 
 def arguments_parsing():
     p = configargparse.ArgumentParser(config_file_parser_class=configargparse.YAMLConfigFileParser)
@@ -117,7 +117,7 @@ def main(args):
         sx, sy, _ = next(s_iter)
         sx, sy = sx.float().cuda(), sy.long().cuda()
 
-        if 'CDAC' in args.method or 'MCL' in args.method:
+        if 'CDAC' in args.method or 'MCL' in args.method or 'PL' in args.method:
             ux, uy, ux1, ux2, u_idx = next(u_iter)
             ux, ux1, ux2, u_idx = ux.float().cuda(), ux1.float().cuda(), ux2.float().cuda(), u_idx.long()
             # for testing only
@@ -154,6 +154,9 @@ def main(args):
         elif 'CDAC' in args.method:
             u_loss, num_pl, ratio_pl, acc_pl = model.cdac_loss(ux, uy, ux1, ux2, i)
             u_loss.backward()
+        elif 'PL' in args.method:
+            u_loss = model.pl_loss(ux, ux1, ux2)
+            u_loss.backward()
         elif 'MCL' in args.method:
             u_loss = model.mcl_loss(ux, ux1, proto, i, args.dataset['num_classes'])
             u_loss.backward()
@@ -172,7 +175,7 @@ def main(args):
             writer.add_scalar('Loss/s_loss', s_loss.item(), i)
             if args.mode == 'ssda':
                 writer.add_scalar('Loss/t_loss', t_loss.item(), i)
-            if 'MME' in args.method or 'CDAC' in args.method or 'MCL' in args.method:
+            if 'MME' in args.method or 'CDAC' in args.method or 'MCL' in args.method or 'PL' in args.method:
                 writer.add_scalar('Loss/u_loss', -u_loss.item(), i)
 
             if 'CDAC' in args.method:

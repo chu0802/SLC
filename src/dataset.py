@@ -68,8 +68,13 @@ def get_all_loaders(args):
 
         t_labeled_test_set = ImageList(root, t_train_list_file, transform=TRANSFORM['test'])
         t_labeled_test_loader = get_loader(t_labeled_test_set, args.seed, args.bsize, train=False)
+        
+        strong = (
+            TRANSFORM['strong'] if 'CDAC' in args.method or 'MCL' in args.method or 'PL' in args.method
+            else None
+        )
 
-        t_unlabeled_train_set = ImageList(root, t_test_list_file, transform=TRANSFORM['train'], strong_transform=TRANSFORM['strong'] if 'CDAC' in args.method else None)
+        t_unlabeled_train_set = ImageList(root, t_test_list_file, transform=TRANSFORM['train'], strong_transform=strong)
         t_unlabeled_train_loader = get_loader(t_unlabeled_train_set, args.seed, args.bsize, train=True)
         
         t_unlabeled_test_set = ImageList(root, t_test_list_file, transform=TRANSFORM['test'])

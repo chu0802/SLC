@@ -11,15 +11,15 @@ mmseed = 802
 dir_ = Path('script')
 rmtree(str(dir_))
 dir_.mkdir(parents=True, exist_ok=True)
-device = [0]*21
-num_repeated = 3
+device = [0]*12
+num_repeated = 10
 
 # for DomainNet
-num_domains = 4
-valid_pairs = [6, 7, 3, 2, 10, 8, 4]
-# for OfficeHome
 # num_domains = 4
-# valid_pairs = list(range(12))
+# valid_pairs = [6, 7, 3, 2, 10, 8, 4]
+# for OfficeHome
+num_domains = 4
+valid_pairs = list(range(12))
 args_list = [] 
 pairs = list(permutations(range(num_domains), 2))
 for mother_seed in default_rng(seed=mmseed).integers(1e4, size=num_repeated):
@@ -27,18 +27,18 @@ for mother_seed in default_rng(seed=mmseed).integers(1e4, size=num_repeated):
     seed_list = default_rng(seed=mother_seed).integers(1e4, size=len(valid_pairs))
     for i, (v, seed) in enumerate(zip(valid_pairs, seed_list)):
         args = Namespace()
-        args.num_iters = 100000
-        args.early = 90000
+        args.num_iters = 13000
+        args.early = 8000
         args.mode = 'ssda'
         args.method = 'CDAC_LC'
-        args.dataset = 'DomainNet'
-        args.shot = '1shot'
+        args.dataset = 'OfficeHome'
+        args.shot = '3shot'
         args.alpha = 0.3
         args.T = 0.6
         args.lr = 0.01
         args.update_interval = 500
-        args.eval_interval = 1000
-        args.warmup = 50000
+        args.eval_interval = 500
+        args.warmup = 5000
         args.note = f'mother_{mother_seed}'
         args.source, args.target, args.seed, args.order = *pairs[v], seed, i
         # args.init = gh.regSearch(f':MME/.*seed:{args.seed}.*{args.source}.target.{args.target}')[0]
