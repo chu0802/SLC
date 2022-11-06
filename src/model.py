@@ -3,9 +3,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Function
-from evaluation import prediction
+from evaluation import prediction, prediction_with_label
 from cdac_loss import advbce_unlabeled, sigmoid_rampup, BCE_softlabels
 from mcl_loss import contras_cls, ot_loss
+
+from copy import deepcopy
+
 
 def init_weights(m):
     classname = m.__class__.__name__
@@ -17,6 +20,42 @@ def init_weights(m):
     elif classname.find('BatchNorm') != -1:
         m.weight.data.normal_(1.0, 0.1)
         m.bias.data.fill_(0)
+
+# copied from https://github.com/chester256/MCL
+class ModelEMA(object):
+    def __init__(self, model, decay):
+        self.ema = deepcopy(model)
+        self.ema.cuda()
+        self.ema.eval()
+        self.decay = decay
+        self.ema_has_module = hasattr(self.ema, 'module')
+        # Fix EMA. https://github.com/valencebond/FixMatch_pytorch thank you!
+        self.param_keys = [k for k, _ in self.ema.named_parameters()]
+        self.buffer_keys = [k for k, _ in self.ema.named_buffers()]
+        for p in self.ema.parameters():
+            p.requires_grad_(False)
+
+    def update(self, model):
+        needs_module = hasattr(model, 'module') and not self.ema_has_module
+        with torch.no_grad():
+            msd = model.state_dict()
+            esd = self.ema.state_dict()
+            for k in self.param_keys:
+                if needs_module:
+                    j = 'module.' + k
+                else:
+                    j = k
+                model_v = msd[j].detach()
+                ema_v = esd[k]
+                esd[k].copy_(ema_v * self.decay + (1. - self.decay) * model_v)
+
+            for k in self.buffer_keys:
+                if needs_module:
+                    j = 'module.' + k
+                else:
+                    j = k
+                esd[k].copy_(msd[j])
+
 
 # class ProtoClassifier(nn.Module):
 #     def __init__(self, size, label):
@@ -52,6 +91,16 @@ class ProtoClassifier(nn.Module):
     def init(self, model, t_loader):
         t_pred, t_feat = prediction(t_loader, model)
         label = t_pred.argmax(dim=1)
+        center = torch.nan_to_num(torch.vstack([t_feat[label == i].mean(dim=0) for i in range(self.size)]))
+        invalid_idx = center.sum(dim=1) == 0
+        if invalid_idx.any() and self.label is not None:
+            old_center = torch.vstack([t_feat[self.label == i].mean(dim=0) for i in range(self.size)])
+            center[invalid_idx] = old_center[invalid_idx]
+        else:
+            self.label = label
+        self.center = center.requires_grad_(False)
+    def ideal_init(self, model, t_loader):
+        _, t_feat, label = prediction_with_label(t_loader, model)
         center = torch.nan_to_num(torch.vstack([t_feat[label == i].mean(dim=0) for i in range(self.size)]))
         invalid_idx = center.sum(dim=1) == 0
         if invalid_idx.any() and self.label is not None:
@@ -185,12 +234,13 @@ class ResModel(nn.Module):
         return pl_loss
 
     def mcl_loss(self, x1, x2, proto, i, num_classes):
+        T2, lambda_2 = 1.25, 0.2
         f = self.get_features(torch.cat((x1, x2), dim=0))
         out = self.get_predictions(f)
         f1, f2 = f.chunk(2)
         out1, out2 = out.chunk(2)
 
-        pseudo_label = F.softmax(out1.detach() * 1.25, dim=1)
+        pseudo_label = F.softmax(out1.detach() * T2, dim=1)
         max_probs, target_u = torch.max(pseudo_label, dim=1)
         consis_mask = max_probs.ge(0.95).float()
         L_pl = (F.cross_entropy(out2, target_u, reduction='none') * consis_mask).mean()
@@ -201,7 +251,7 @@ class ResModel(nn.Module):
 
         L_ot = ot_loss(proto, f1, f2, num_classes)
 
-        return L_pl + L_con_cls * 0.2 + L_ot * (1 if i > 250 else 0)
+        return L_pl + L_con_cls * lambda_2 + L_ot * (1 if i > 250 else 0)
 
 class GradReverse(Function):
     @staticmethod

@@ -7,19 +7,20 @@ from random import shuffle
 from shutil import rmtree
 
 gh = GH()
-mmseed = 802
+mmseed = 1102
 dir_ = Path('script')
-rmtree(str(dir_))
+# rmtree(str(dir_))
 dir_.mkdir(parents=True, exist_ok=True)
-device = [0]*12
-num_repeated = 10
+device = [0]
+num_repeated = 1
 
 # for DomainNet
 # num_domains = 4
 # valid_pairs = [6, 7, 3, 2, 10, 8, 4]
 # for OfficeHome
 num_domains = 4
-valid_pairs = list(range(12))
+# valid_pairs = list(range(12))
+valid_pairs = [0]
 args_list = [] 
 pairs = list(permutations(range(num_domains), 2))
 for mother_seed in default_rng(seed=mmseed).integers(1e4, size=num_repeated):
@@ -27,10 +28,10 @@ for mother_seed in default_rng(seed=mmseed).integers(1e4, size=num_repeated):
     seed_list = default_rng(seed=mother_seed).integers(1e4, size=len(valid_pairs))
     for i, (v, seed) in enumerate(zip(valid_pairs, seed_list)):
         args = Namespace()
-        args.num_iters = 13000
-        args.early = 8000
+        args.num_iters = 10000
+        args.early = 5000
         args.mode = 'ssda'
-        args.method = 'CDAC_LC'
+        args.method = 'base_LC_ideal'
         args.dataset = 'OfficeHome'
         args.shot = '3shot'
         args.alpha = 0.3
@@ -38,7 +39,7 @@ for mother_seed in default_rng(seed=mmseed).integers(1e4, size=num_repeated):
         args.lr = 0.01
         args.update_interval = 500
         args.eval_interval = 500
-        args.warmup = 5000
+        args.warmup = 0
         args.note = f'mother_{mother_seed}'
         args.source, args.target, args.seed, args.order = *pairs[v], seed, i
         # args.init = gh.regSearch(f':MME/.*seed:{args.seed}.*{args.source}.target.{args.target}')[0]
@@ -48,7 +49,7 @@ shuffle(args_list)
 for i, args in enumerate(args_list):
     script_num = i % len(device)
     args.device = device[script_num]
-    with (dir_ / f'scriptMME_LC{script_num}.sh').open('a') as f:
+    with (dir_ / f'scriptMME_LC{script_num+2}.sh').open('a') as f:
         f.write('python main.py ' + ' '.join([f'--{k} {v}' for k, v in args.__dict__.items()]) + '\n')
     with (dir_ / f'tmp.sh').open('a') as tf:
         tf.write('python test.py ' + ' '.join([f'--{k} {v}' for k, v in args.__dict__.items()]) + '\n')
