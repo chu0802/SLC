@@ -10,7 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 import sys
 sys.path.append('src')
 
-from model import ResModel, ProtoClassifier
+from model import ResModel, ProtoClassifier, ModelEMA
 from util import set_seed, save, load, LR_Scheduler, Lambda_Scheduler
 from dataset import get_all_loaders
 from evaluation import evaluation, prediction
@@ -40,6 +40,7 @@ def arguments_parsing():
     p.add('--log_interval', type=int, default=100)
     p.add('--update_interval', type=int, default=0)
     p.add('--early', type=int, default=5000)
+    p.add('--counter', type=int, default=5)
     p.add('--warmup', type=int, default=0)
     # configurations
     p.add('--dataset_cfg', type=literal_eval)
@@ -91,6 +92,11 @@ def main(args):
 
         # ppc = ProtoClassifier(args.dataset['num_classes'], pseudo_label)
         ppc = ProtoClassifier(args.dataset['num_classes'])
+        if args.warmup == 0:
+            if 'ideal' in args.method:
+                ppc.ideal_init(model, t_unlabeled_test_loader)
+            else:
+                ppc.init(model, t_unlabeled_test_loader)
 
     if 'MCL' in args.method:
         proto = Prototype(C=args.dataset['num_classes'], dim=512)
@@ -109,7 +115,11 @@ def main(args):
     writer.add_text('Hash', args.mdh.getHashStr())
 
     counter = 0
-    best_acc, best_val_acc = 0, 0
+    best_acc, best_ema_acc, best_val_acc = 0, 0, 0
+
+    if 'MCL' in args.method:
+        model_ema = ModelEMA(model, decay=0.99)
+
     # for i in range(50001, 100001):
     for i in range(1, args.num_iters+1):
         opt.zero_grad()
@@ -128,7 +138,7 @@ def main(args):
 
         sf = model.get_features(sx)
 
-        if args.warmup > 0 and i > args.warmup and 'LC' in args.method:
+        if i > args.warmup and 'LC' in args.method:
             sy2 = ppc(sf.detach(), args.T)
             s_loss = model.lc_loss(sf, sy, sy2, args.alpha)
         elif 'NL' in args.method:
@@ -170,6 +180,9 @@ def main(args):
             lr_scheduler.refresh()
         lr_scheduler.step()
 
+        if 'MCL' in args.method:
+            model_ema.update(model)
+
         if i % args.log_interval == 0:
             writer.add_scalar('LR', lr_scheduler.get_lr(), i)
             writer.add_scalar('Loss/s_loss', s_loss.item(), i)
@@ -193,14 +206,24 @@ def main(args):
                 writer.add_scalar('Acc/t_acc', t_acc, i)
                 save(args.mdh.getModelPath(), model)
                 best_acc = t_acc
+
+                if 'MCL' in args.method:
+                    ema_acc = evaluation(t_unlabeled_test_loader, model_ema.ema)
+                    writer.add_scalar('Acc/ema_acc', ema_acc, i)
+                    best_ema_acc = ema_acc
             else:
                 counter += 1
-            if counter > 5 or i == args.num_iters:
+            if counter > args.counter or i == args.num_iters:
                 writer.add_scalar('Acc/final_acc', best_acc, 0)
+                if 'MCL' in args.method:
+                    writer.add_scalar('Acc/final_ema_acc', best_ema_acc, 0)
                 break
     
         if i > args.warmup and args.update_interval > 0 and i % args.update_interval == 0 and 'LC' in args.method:
-            ppc.init(model, t_unlabeled_test_loader)
+            if 'ideal' in args.method:
+                ppc.ideal_init(model, t_unlabeled_test_loader)
+            else:
+                ppc.init(model, t_unlabeled_test_loader)
     # for saving pre-trained model
     # t_acc = evaluation(t_unlabeled_test_loader, model)
     # writer.add_scalar('Acc/t_acc', t_acc, args.num_iters)
@@ -208,7 +231,8 @@ def main(args):
 
 if __name__ == '__main__':
     args = arguments_parsing()
-    args.mdh = ModelHandler(args, keys=['dataset', 'mode', 'method', 'source', 'target', 'seed', 'num_iters', 'alpha', 'T', 'init', 'note', 'update_interval', 'lr', 'order', 'shot', 'warmup'])
+    gh = GlobalHandler('base')
+    args.mdh = ModelHandler(args, keys=['dataset', 'mode', 'method', 'source', 'target', 'seed', 'num_iters', 'alpha', 'T', 'init', 'note', 'update_interval', 'lr', 'order', 'shot', 'warmup'], gh=gh)
     # replace the configuration
     args.dataset = args.dataset_cfg[args.dataset]
     main(args)
