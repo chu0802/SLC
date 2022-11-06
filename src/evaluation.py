@@ -23,3 +23,15 @@ def prediction(loader, model):
             P.append(model.get_predictions(F[-1]))
     model.train()
     return torch.vstack(P), torch.vstack(F)
+
+def prediction_with_label(loader, model):
+    model.eval()
+    P, F, Y = [], [], []
+    with torch.no_grad():
+        for x, y, _ in loader:
+            x = x.cuda().float()
+            F.append(model.get_features(x))
+            P.append(model.get_predictions(F[-1]))
+            Y.append(y)
+    model.train()
+    return torch.vstack(P), torch.vstack(F), torch.hstack(Y)
