@@ -35,3 +35,17 @@ def prediction_with_label(loader, model):
             Y.append(y)
     model.train()
     return torch.vstack(P), torch.vstack(F), torch.hstack(Y)
+
+def protonet_evaluation(loader, model, ppc):
+    model.eval()
+    acc, cnt = 0, 0
+    with torch.no_grad():
+        for x, y, _ in loader:
+            x, y = x.float().cuda(), y.long().cuda()
+            f = model.get_features(x)
+            out = ppc(f)
+            pred = out.argmax(dim=1)
+            acc += (pred == y).float().sum().item()
+            cnt += len(x)
+    model.train()
+    return 100 * acc / cnt

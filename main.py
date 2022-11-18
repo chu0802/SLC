@@ -13,7 +13,7 @@ sys.path.append('src')
 from model import ResModel, ProtoClassifier, ModelEMA
 from util import set_seed, save, load, LR_Scheduler, Lambda_Scheduler
 from dataset import get_all_loaders
-from evaluation import evaluation, prediction
+from evaluation import evaluation, prediction, protonet_evaluation
 from mcl_loss import Prototype
 from mdh import ModelHandler, GlobalHandler
 
@@ -97,6 +97,12 @@ def main(args):
                 ppc.ideal_init(model, t_unlabeled_test_loader)
             else:
                 ppc.init(model, t_unlabeled_test_loader)
+    elif 'ideal' in args.method:
+        model_path = args.mdh.gh.getModelPath(args.init)
+        ideal_model = ResModel('resnet34', output_dim=args.dataset['num_classes'])
+        load(model_path, ideal_model)
+        ideal_model.cuda()
+        ideal_model.eval()
 
     if 'MCL' in args.method:
         proto = Prototype(C=args.dataset['num_classes'], dim=512)
@@ -143,6 +149,9 @@ def main(args):
             s_loss = model.lc_loss(sf, sy, sy2, args.alpha)
         elif 'NL' in args.method:
             s_loss = model.nl_loss(sf, sy, args.alpha, args.T)
+        elif 'ideal' in args.method:
+            sy2 = F.softmax(ideal_model(sx).detach(), dim=1)
+            s_loss = model.lc_loss(sf, sy, sy2, args.alpha)
         else:
             s_loss = model.feature_base_loss(sf, sy)
         
@@ -195,16 +204,33 @@ def main(args):
                 writer.add_scalar('PseudoLabel/numbers', num_pl, i)
                 writer.add_scalar('PseudoLabel/ratio', ratio_pl, i)
                 writer.add_scalar('PseudoLabel/acc', acc_pl, i)
+
+        if i >= args.warmup and args.update_interval > 0 and i % args.update_interval == 0 and 'LC' in args.method:
+            if 'ideal' in args.method:
+                ppc.ideal_init(model, t_unlabeled_test_loader)
+            else:
+                ppc.init(model, t_unlabeled_test_loader)
+        
         if i >= args.early and i % args.eval_interval == 0:
             val_acc = evaluation(t_val_loader, model)
             writer.add_scalar('Acc/val_acc', val_acc, i)
+
+            # test for ppc acc.
+            t_acc = evaluation(t_unlabeled_test_loader, model)
+            writer.add_scalar('Acc/t_acc', t_acc, i)
+            if args.method == 'base':
+                ppc = ProtoClassifier(args.dataset['num_classes'])
+                ppc.init(model, t_unlabeled_test_loader)
+                ppc_acc = protonet_evaluation(t_unlabeled_test_loader, model, ppc)
+            
+                writer.add_scalar('Acc/ppc_acc', ppc_acc, i)
             if val_acc >= best_val_acc:
                 best_val_acc = val_acc
                 counter = 0
 
-                t_acc = evaluation(t_unlabeled_test_loader, model)
-                writer.add_scalar('Acc/t_acc', t_acc, i)
-                save(args.mdh.getModelPath(), model)
+                # t_acc = evaluation(t_unlabeled_test_loader, model)
+                # writer.add_scalar('Acc/t_acc', t_acc, i)
+                # save(args.mdh.getModelPath(), model)
                 best_acc = t_acc
 
                 if 'MCL' in args.method:
@@ -219,11 +245,7 @@ def main(args):
                     writer.add_scalar('Acc/final_ema_acc', best_ema_acc, 0)
                 break
     
-        if i > args.warmup and args.update_interval > 0 and i % args.update_interval == 0 and 'LC' in args.method:
-            if 'ideal' in args.method:
-                ppc.ideal_init(model, t_unlabeled_test_loader)
-            else:
-                ppc.init(model, t_unlabeled_test_loader)
+        
     # for saving pre-trained model
     # t_acc = evaluation(t_unlabeled_test_loader, model)
     # writer.add_scalar('Acc/t_acc', t_acc, args.num_iters)
@@ -236,3 +258,4 @@ if __name__ == '__main__':
     # replace the configuration
     args.dataset = args.dataset_cfg[args.dataset]
     main(args)
+
